@@ -18,6 +18,20 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="main\CardDB.hpp" />
+    <ClInclude Include="main\ProcessData.h" />
+    <ClInclude Include="main\time.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main\CardDB.cpp" />
+    <ClCompile Include="main\main.cpp" />
+    <ClCompile Include="main\ProcessData.cpp" />
+    <ClCompile Include="main\time.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="main\Config.YAML" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -110,6 +124,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -135,16 +151,6 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="ProcessData.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="文本.txt" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="ProcessData.h" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

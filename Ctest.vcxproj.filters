@@ -15,21 +15,33 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="ProcessData.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="文本.txt">
-      <Filter>源文件</Filter>
-    </Text>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="ProcessData.h">
+    <ClInclude Include="main\ProcessData.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="main\time.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="main\CardDB.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main\main.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="main\ProcessData.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="main\time.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="main\CardDB.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="main\Config.YAML">
+      <Filter>资源文件</Filter>
+    </None>
   </ItemGroup>
 </Project>
