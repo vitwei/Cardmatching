@@ -53,7 +53,7 @@ vector<ImageInfo> Imgprocess2(const string& folderPath) {
     return imageInfoVector;
 }
 
-    vector<ImageInfo> Imgprocess3(const string& folderPath) {
+vector<ImageInfo> Imgprocess3(const string& folderPath) {
     vector<string> imageFiles;
     vector<ImageInfo> imageInfoVector;
     for (const auto& entry : filesystem::directory_iterator(folderPath)) {
@@ -291,7 +291,7 @@ string MatchImg5(const string& Path, vector<ImageInfo>& imageInfoVector) {
 
 }
 
-string MatchImg6(cv::Mat data, vector<ImageInfo>& imageInfoVector) {
+string MatchImg6(cv::Mat& data, vector<ImageInfo>& imageInfoVector) {
     try {
         cv::cuda::GpuMat basegpuDescriptors(data);
         vector<pair<string, int>> result;
@@ -483,12 +483,7 @@ std::string vectorBasecardToJson(const std::vector<Basecard>& data) {
     return result;
 }
 
-
-
-
-
-
-void serverhandle(tcp::socket socket, tcp::socket ToGpusocket, pqxx::connection& connection, std::string config) {
+void serverhandle(tcp::socket& socket, tcp::socket& ToGpusocket, pqxx::connection& connection, std::string& config) {
     try {
         // Process received data
         std::string received_data(1024, '\0');
@@ -512,10 +507,7 @@ void serverhandle(tcp::socket socket, tcp::socket ToGpusocket, pqxx::connection&
     socket.close();
 }
 
-
-
-
-void GPUserverhandle(tcp::socket socket, vector<ImageInfo>& cvimg) {
+void GPUserverhandle(tcp::socket& socket, vector<ImageInfo>& cvimg) {
     try {
         std::string received_json(1024, '\0');
         size_t bytes_transferred = socket.read_some(buffer(received_json));
@@ -534,18 +526,27 @@ void GPUserverhandle(tcp::socket socket, vector<ImageInfo>& cvimg) {
     socket.close();
 }
 
-/*
-void start_server(vector<ImageInfo>& cvimg) {
+
+void start_server() {
     io_service io;
     ip::tcp::endpoint endpoint(ip::tcp::v4(), 9007);
     ip::tcp::acceptor acceptor(io, endpoint);
+
     io_context ioContext;
     ip::tcp::socket ToGpusocket(ioContext);
     cout << "网络预处理完成" << endl;
+    pqxx::connection db("dbname=cardmatch user=postgres password=123 port=5432");
+    if (db.is_open()) {
+        cout << "Opened database successfully: " << db.dbname() << endl;
+    }
+    else {
+        cout << "Can't open database" << endl;
+    }
+    string config = "temp";
     while (true) {
         ip::tcp::socket socket(io);
         acceptor.accept(socket);
-        std::thread worker(serverhandle);
+        std::thread worker(serverhandle, std::ref(socket), std::ref(ToGpusocket), std::ref(db),std::ref(config));
         worker.detach();
     }
 }
@@ -555,11 +556,11 @@ void start_GPUserver() {
     ip::tcp::endpoint endpoint(ip::tcp::v4(), 9008);
     ip::tcp::acceptor acceptor(io, endpoint);
     cout << "网络预处理完成" << endl;
+    vector<ImageInfo> cvimg;
     while (true) {
         ip::tcp::socket socket(io);
         acceptor.accept(socket);
-        std::thread worker(GPUserverhandle, std::move(socket));
+        std::thread worker(GPUserverhandle, std::ref(socket),std::ref(cvimg));
         worker.detach();
     }
 }
-*/

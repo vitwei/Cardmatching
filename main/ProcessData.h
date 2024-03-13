@@ -26,7 +26,7 @@
 #include <string.h>
 #include <pqxx/pqxx>
 #include <nlohmann/json.hpp>
-
+#include <thread>
 
 
 using namespace std;
@@ -65,7 +65,7 @@ string  MatchImg2(const string& Path, vector<ImageInfo>& imageInfoVector);
 string  MatchImg3(const string& Path, vector<ImageInfo>& imageInfoVector);
 string  MatchImg4(const string& Path, vector<ImageInfo>& imageInfoVector);
 string MatchImg5(const string& Path, vector<ImageInfo>& imageInfoVector);
-string MatchImg6(cv::Mat data, vector<ImageInfo>& imageInfoVector);
+string MatchImg6(cv::Mat& data, vector<ImageInfo>& imageInfoVector);
 
 string Matchrule(const vector<pair<string, int>>& result);
 
@@ -81,9 +81,9 @@ cv::Mat ProcessdescriptorsJson(string& imgjson);
 
 vector<ImageInfo> DBGetImageInfo(pqxx::connection& connection);
 
-void serverhandle(tcp::socket socket, tcp::socket ToGpusocket, pqxx::connection& connection, std::string config);
-void GPUserverhandle(tcp::socket socket, vector<ImageInfo>& cvimg);
+void serverhandle(tcp::socket& socket, tcp::socket& ToGpusocket, pqxx::connection& connection, std::string& config);
+void GPUserverhandle(tcp::socket& socket, vector<ImageInfo>& cvimg);
 void start_GPUserver();
-void start_server(vector<ImageInfo>& cvimg);
+void start_server();
 
 #endif  // ProcessData
