@@ -2,7 +2,7 @@
 #ifndef ProcessData
 #define ProcessData
 
-#include "CardDB.hpp"
+#include "CardDB.h"
 #include <random>
 #include <omp.h>
 #include <opencv2/core/core.hpp>
@@ -25,6 +25,7 @@
 #include <mutex>
 #include <string.h>
 #include <pqxx/pqxx>
+#include <nlohmann/json.hpp>
 
 
 
@@ -64,6 +65,7 @@ string  MatchImg2(const string& Path, vector<ImageInfo>& imageInfoVector);
 string  MatchImg3(const string& Path, vector<ImageInfo>& imageInfoVector);
 string  MatchImg4(const string& Path, vector<ImageInfo>& imageInfoVector);
 string MatchImg5(const string& Path, vector<ImageInfo>& imageInfoVector);
+string MatchImg6(cv::Mat data, vector<ImageInfo>& imageInfoVector);
 
 string Matchrule(const vector<pair<string, int>>& result);
 
@@ -79,6 +81,9 @@ cv::Mat ProcessdescriptorsJson(string& imgjson);
 
 vector<ImageInfo> DBGetImageInfo(pqxx::connection& connection);
 
-void handle_connection(tcp::socket socket, vector<ImageInfo>& cvimg, int threadID);
+void serverhandle(tcp::socket socket, tcp::socket ToGpusocket, pqxx::connection& connection, std::string config);
+void GPUserverhandle(tcp::socket socket, vector<ImageInfo>& cvimg);
+void start_GPUserver();
 void start_server(vector<ImageInfo>& cvimg);
+
 #endif  // ProcessData

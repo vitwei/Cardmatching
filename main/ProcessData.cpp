@@ -1,6 +1,6 @@
 #include "ProcessData.h"
 #include "time.cpp"
-#include "CardDB.hpp"
+#include "CardDB.h"
 
 
 cv::Ptr<cv::cuda::DescriptorMatcher> matcher = cv::cuda::DescriptorMatcher::createBFMatcher();
@@ -53,7 +53,7 @@ vector<ImageInfo> Imgprocess2(const string& folderPath) {
     return imageInfoVector;
 }
 
-vector<ImageInfo> Imgprocess3(const string& folderPath) {
+    vector<ImageInfo> Imgprocess3(const string& folderPath) {
     vector<string> imageFiles;
     vector<ImageInfo> imageInfoVector;
     for (const auto& entry : filesystem::directory_iterator(folderPath)) {
@@ -291,6 +291,19 @@ string MatchImg5(const string& Path, vector<ImageInfo>& imageInfoVector) {
 
 }
 
+string MatchImg6(cv::Mat data, vector<ImageInfo>& imageInfoVector) {
+    try {
+        cv::cuda::GpuMat basegpuDescriptors(data);
+        vector<pair<string, int>> result;
+        MatchData(imageInfoVector, basegpuDescriptors, result);
+        return Matchrule(result);
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Exception caught: " << e.what() << std::endl;
+    }
+
+}
+
 vector<pair<string, int>> MatchData(vector<ImageInfo>& imageInfoVector, cv::cuda::GpuMat& basegpuDescriptors, vector<pair<string, int>>& result) {
     vector<vector<cv::DMatch> > knn_matches;
     for (const auto& img : imageInfoVector) {
@@ -420,6 +433,7 @@ cv::Mat ProcessdescriptorsJson(string& imgjson) {
     int col = 128;
     int row = count / 128;
     cv::Mat mat(row, col, CV_32F, data);
+    delete[] data;
 
     return  mat;
 
@@ -449,51 +463,103 @@ vector<ImageInfo> DBGetImageInfo(pqxx::connection& connection) {
     }
 }
 
+std::string vectorBasecardToJson(const std::vector<Basecard>& data) {
+
+
+    std::string result = "["; // 开始 JSON 数组
+    // 遍历 vector 中的每个 Basecard 对象
+    for (const auto& card : data) {
+        // 将当前 Basecard 对象转换为 JSON 字符串，并添加到结果中
+        result += card.toJson() + ",";
+    }
+
+    // 删除最后一个逗号
+    if (!data.empty()) {
+        result.pop_back();
+    }
+
+    result += "]"; // 结束 JSON 数组
+
+    return result;
+}
 
 
 
 
 
 
-
-
-void handle_connection(tcp::socket socket, vector<ImageInfo>& cvimg, int threadID) {
+void serverhandle(tcp::socket socket, tcp::socket ToGpusocket, pqxx::connection& connection, std::string config) {
     try {
+        // Process received data
         std::string received_data(1024, '\0');
         size_t bytes_transferred = socket.read_some(buffer(received_data));
+        // Connect to GPU
+        ip::tcp::endpoint endpoint(ip::address::from_string("127.0.0.1"), 9008);
+        ToGpusocket.connect(endpoint);
+        write(socket, buffer(received_data));
+        // receive the response and process
+        std::string Gpudata(1024, '\0');
+        size_t received_bytes = ToGpusocket.read_some(buffer(Gpudata));
+        vector<Basecard> Senddata = DBmatch(Gpudata, connection);
+        string Sendmessage =vectorBasecardToJson(Senddata);
+        boost::asio::write(socket, boost::asio::buffer(Sendmessage));
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Exception caught: " << e.what() << std::endl;
+        // Handle the exception or log the error...
+        boost::asio::write(socket, boost::asio::buffer("Error"));
+    }
+    socket.close();
+}
 
+
+
+
+void GPUserverhandle(tcp::socket socket, vector<ImageInfo>& cvimg) {
+    try {
+        std::string received_json(1024, '\0');
+        size_t bytes_transferred = socket.read_some(buffer(received_json));
         // Process received data and generate response
-        std::string response_message = MatchImg4(received_data, cvimg);
-
+        cv::Mat data = ProcessdescriptorsJson(received_json);
+        //返回主键数据
+        std::string response_message = MatchImg6(data, cvimg);
         // Send the response
         boost::asio::write(socket, boost::asio::buffer(response_message));
     }
     catch (const std::exception& e) {
         std::cerr << "Exception caught: " << e.what() << std::endl;
-
         // Handle the exception or log the error...
         boost::asio::write(socket, boost::asio::buffer("Error"));
     }
-
-    // Close the socket
-    std::cout << threadID <<" back"<<endl;
     socket.close();
 }
 
+/*
 void start_server(vector<ImageInfo>& cvimg) {
     io_service io;
-    ip::tcp::endpoint endpoint(ip::tcp::v4(), 9898);
+    ip::tcp::endpoint endpoint(ip::tcp::v4(), 9007);
+    ip::tcp::acceptor acceptor(io, endpoint);
+    io_context ioContext;
+    ip::tcp::socket ToGpusocket(ioContext);
+    cout << "网络预处理完成" << endl;
+    while (true) {
+        ip::tcp::socket socket(io);
+        acceptor.accept(socket);
+        std::thread worker(serverhandle);
+        worker.detach();
+    }
+}
+
+void start_GPUserver() {
+    io_service io;
+    ip::tcp::endpoint endpoint(ip::tcp::v4(), 9008);
     ip::tcp::acceptor acceptor(io, endpoint);
     cout << "网络预处理完成" << endl;
     while (true) {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<int> distribution(1, 100000000);
-        int threadID = distribution(gen);
         ip::tcp::socket socket(io);
         acceptor.accept(socket);
-        std::thread worker(handle_connection, std::move(socket), std::ref(cvimg), threadID);
+        std::thread worker(GPUserverhandle, std::move(socket));
         worker.detach();
-        std::cout << "successfulCreate " << threadID << "thread" << endl;
     }
 }
+*/

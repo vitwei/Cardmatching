@@ -1,7 +1,18 @@
-#include "CardDB.hpp"
+#include "CardDB.h"
 
 Basecard::Basecard() {
     // Initialize members as needed
+}
+
+nlohmann::json Basecard::toJson() const {
+    return {
+        {"img", img},
+        {"textcontent", textcontent},
+        {"price", price},
+        {"pricetime", pricetime},
+        {"createtime", createtime},
+        {"updatetime", updatetime}
+    };
 }
 
 // Destructor

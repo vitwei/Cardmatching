@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <nlohmann/json.hpp>
 
 
 using namespace std;
@@ -39,6 +40,8 @@ public:
     std::vector<std::string> getPriceTime() const;
     std::string getCreateTime() const;
     std::string getUpdateTime() const;
+
+    nlohmann::json toJson() const;
 
 private:
     std::string img;

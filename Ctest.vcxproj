@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="main\CardDB.hpp" />
+    <ClInclude Include="main\CardDB.h" />
     <ClInclude Include="main\ProcessData.h" />
     <ClInclude Include="main\time.h" />
   </ItemGroup>

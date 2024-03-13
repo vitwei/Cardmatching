@@ -21,7 +21,7 @@
     <ClInclude Include="main\time.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="main\CardDB.hpp">
+    <ClInclude Include="main\CardDB.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
