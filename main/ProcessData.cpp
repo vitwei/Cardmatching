@@ -275,6 +275,7 @@ string MatchImg4(const string& Path, vector<ImageInfo>& imageInfoVector) {
 
 string MatchImg5(const string& Path, vector<ImageInfo>& imageInfoVector) {
     try {
+        Timer time;
         vector<cv::KeyPoint> basekeypoints;
         cv::Mat basedescriptors;
         cv::Mat base = cv::imread(Path, cv::IMREAD_GRAYSCALE);
@@ -304,6 +305,37 @@ string MatchImg6(cv::Mat& data, vector<ImageInfo>& imageInfoVector) {
 
 }
 
+string MatchImg7(cv::Mat& data, vector<ImageInfo>& imageInfoVector) {
+    try {
+        cv::cuda::GpuMat basegpuDescriptors(data);
+        vector<pair<string, int>> result;
+        MatchDataAsync(imageInfoVector, basegpuDescriptors, result);
+        return Matchrule(result);
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Exception caught: " << e.what() << std::endl;
+    }
+
+}
+
+string MatchImg8(const string& Path, vector<ImageInfo>& imageInfoVector) {
+    try {
+        Timer time;
+        vector<cv::KeyPoint> basekeypoints;
+        cv::Mat basedescriptors;
+        cv::Mat base = cv::imread(Path, cv::IMREAD_GRAYSCALE);
+        sift->detectAndCompute(base, cv::noArray(), basekeypoints, basedescriptors);
+        cv::cuda::GpuMat basegpuDescriptors(basedescriptors);
+        vector<pair<string, int>> result;
+        MatchDataAsync(imageInfoVector, basegpuDescriptors, result);
+        return Matchrule(result);
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Exception caught from MatchImg8" << e.what() << std::endl;
+    }
+
+}
+
 vector<pair<string, int>> MatchData(vector<ImageInfo>& imageInfoVector, cv::cuda::GpuMat& basegpuDescriptors, vector<pair<string, int>>& result) {
     vector<vector<cv::DMatch> > knn_matches;
     for (const auto& img : imageInfoVector) {
@@ -328,19 +360,74 @@ vector<pair<string, int>> MatchData(vector<ImageInfo>& imageInfoVector, cv::cuda
     return result;
 }
 
+
+void ProcessImageAsync(const ImageInfo& img, cv::cuda::GpuMat& basegpuDescriptors, vector<pair<string, int>>& result, mutex& resmutex)
+{
+    cv::cuda::GpuMat tempDescriptors(img.descriptors);
+    vector<cv::DMatch> good_matches;
+    vector<vector<cv::DMatch>> knn_matches;
+    matcher->knnMatch(tempDescriptors, basegpuDescriptors, knn_matches, 2);
+    for (size_t i = 0; i < knn_matches.size(); i++)
+    {
+        if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
+        {
+            good_matches.push_back(knn_matches[i][0]);
+        }
+    }
+    if (good_matches.size() > 1000)
+    {
+        resmutex.lock(); // Protect shared data
+        result.push_back(
+            { img.filePath, good_matches.size() }
+        );
+        resmutex.unlock();
+    }
+}
+
+
+
+
+
+
+vector<pair<string, int>> MatchDataAsync(std::vector<ImageInfo>& imageInfoVector, cv::cuda::GpuMat& basegpuDescriptors, std::vector<std::pair<std::string, int>>& result) {
+    try {
+        mutex result_mutex;
+        vector<future<void>> futures;
+        for (const auto& img : imageInfoVector)
+        {
+            futures.push_back(async(launch::async, ProcessImageAsync, std::ref(img), std::ref(basegpuDescriptors), std::ref(result), std::ref(result_mutex)));
+        }
+        // Wait for all async tasks to finish
+        for (auto& future : futures)
+        {
+            future.wait();
+        }
+        return result;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Exception caught from MatchDataAsync" << e.what() << std::endl;
+    }
+}
+
+
 string Matchrule(const vector<pair<string, int>>& result) {
     /*
     取最大匹配点的可能图像的Path 如果没有最大匹配点则返回false
     */
-    auto maxElement = std::max_element(result.begin(), result.end(),
-        [](const auto& lhs, const auto& rhs) {
-            return lhs.second < rhs.second;
-        });
+    try {
+        auto maxElement = std::max_element(result.begin(), result.end(),
+            [](const auto& lhs, const auto& rhs) {
+                return lhs.second < rhs.second;
+            });
 
-    if (maxElement == result.end()) {
-        return  "False";
+        if (maxElement == result.end()) {
+            return  "False";
+        }
+        return maxElement->first;
     }
-    return maxElement->first;
+    catch (const std::exception& e) {
+        std::cerr << "Exception caught from Matchrule" << e.what() << std::endl;
+    }
 }
 
 vector<float> ProcessBasecardPrice(std::string PriceUnit) {
@@ -526,7 +613,6 @@ void GPUserverhandle(tcp::socket& socket, vector<ImageInfo>& cvimg) {
     socket.close();
 }
 
-
 void start_server() {
     io_service io;
     ip::tcp::endpoint endpoint(ip::tcp::v4(), 9007);
@@ -557,6 +643,13 @@ void start_GPUserver() {
     ip::tcp::acceptor acceptor(io, endpoint);
     cout << "网络预处理完成" << endl;
     vector<ImageInfo> cvimg;
+    pqxx::connection db("dbname=cardmatch user=postgres password=123 port=5432");
+    if (db.is_open()) {
+        cout << "Opened database successfully: " << db.dbname() << endl;
+    }
+    else {
+        cout << "Can't open database" << endl;
+    }
     while (true) {
         ip::tcp::socket socket(io);
         acceptor.accept(socket);

@@ -66,6 +66,8 @@ string  MatchImg3(const string& Path, vector<ImageInfo>& imageInfoVector);
 string  MatchImg4(const string& Path, vector<ImageInfo>& imageInfoVector);
 string MatchImg5(const string& Path, vector<ImageInfo>& imageInfoVector);
 string MatchImg6(cv::Mat& data, vector<ImageInfo>& imageInfoVector);
+string MatchImg7(cv::Mat& data, vector<ImageInfo>& imageInfoVector);
+string MatchImg8(const string& Path, vector<ImageInfo>& imageInfoVector);
 
 string Matchrule(const vector<pair<string, int>>& result);
 
@@ -76,6 +78,9 @@ vector<float> ProcessBasecardPrice(std::string PriceUnit);
 vector<string> ProcessBasecardPricetime(std::string PricetimeUnit);
 
 vector<pair<string, int>> MatchData(vector<ImageInfo>& imageInfoVector, cv::cuda::GpuMat& basegpuDescriptors, vector<pair<string, int>>& result);
+
+void ProcessImageAsync(const ImageInfo& img, cv::cuda::GpuMat& basegpuDescriptors, vector<pair<string, int>>& result, mutex& resmutex);
+vector<pair<string, int>> MatchDataAsync(std::vector<ImageInfo>& imageInfoVector, cv::cuda::GpuMat& basegpuDescriptors, std::vector<std::pair<std::string, int>>& result);
 
 cv::Mat ProcessdescriptorsJson(string& imgjson);
 
