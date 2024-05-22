@@ -1,93 +1,16 @@
 #include "ProcessData.h"
 #include "time.cpp"
 #include "CardDB.h"
+#include <omp.h>
+
 
 
 cv::Ptr<cv::cuda::DescriptorMatcher> matcher = cv::cuda::DescriptorMatcher::createBFMatcher();
 cv::Ptr<cv::SIFT> sift = cv::SIFT::create();
 
-vector<ImageInfoGPU> Imgprocess(const string& folderPath) {
-    vector<string> imageFiles;
-    vector<ImageInfoGPU> imageInfoVector;
-    for (const auto& entry : filesystem::directory_iterator(folderPath)) {
-        if (entry.is_regular_file()) {
-            string extension = entry.path().extension().string();
-            if (extension == ".jpg" || extension == ".png") {
-                imageFiles.push_back(entry.path().string());
-            }
-        }
-    }
-
-    for (const auto& jpg : imageFiles) {
-        cv::Mat img = cv::imread(jpg, cv::IMREAD_GRAYSCALE);
-        vector< cv::KeyPoint> keypoints;
-        cv::Mat descriptors;
-        sift->detectAndCompute(img, cv::noArray(), keypoints, descriptors);
-        cv::cuda::GpuMat gpuDescriptors(descriptors);
-        imageInfoVector.push_back({ img, jpg, descriptors, keypoints });
-    }
-
-    return imageInfoVector;
-}
-
-vector<ImageInfo> Imgprocess2(const string& folderPath) {
-    vector<string> imageFiles;
-    vector<ImageInfo> imageInfoVector;
-    for (const auto& entry : filesystem::directory_iterator(folderPath)) {
-        if (entry.is_regular_file()) {
-            string extension = entry.path().extension().string();
-            if (extension == ".jpg" || extension == ".png") {
-                imageFiles.push_back(entry.path().string());
-            }
-        }
-    }
-
-    for (const auto& jpg : imageFiles) {
-        cv::Mat img = cv::imread(jpg, cv::IMREAD_GRAYSCALE);
-        vector< cv::KeyPoint> keypoints;
-        cv::Mat descriptors;
-        sift->detectAndCompute(img, cv::noArray(), keypoints, descriptors);
-        imageInfoVector.push_back({ img, jpg, descriptors });
-    }
-
-    return imageInfoVector;
-}
-
-vector<ImageInfo> Imgprocess3(const string& folderPath) {
-    vector<string> imageFiles;
-    vector<ImageInfo> imageInfoVector;
-    for (const auto& entry : filesystem::directory_iterator(folderPath)) {
-        if (entry.is_regular_file()) {
-            string extension = entry.path().extension().string();
-            if (extension == ".jpg" || extension == ".png") {
-                imageFiles.push_back(entry.path().string());
-            }
-        }
-    }
-    // 用于存储异步任务的 std::future
-    vector<future<ImageInfo>> futures;
-    for (const auto& jpg : imageFiles) {
-        // 异步执行任务
-        futures.push_back(async([jpg]() {
-            cv::Mat img = cv::imread(jpg, cv::IMREAD_GRAYSCALE);
-            vector<cv::KeyPoint> keypoints;
-            cv::Mat descriptors;
-            sift->detectAndCompute(img, cv::noArray(), keypoints, descriptors);
-            return ImageInfo{ img, jpg, descriptors};
-            }));
-    }
-    // 等待所有异步任务完成，并获取结果
-    for (auto& future : futures) {
-        imageInfoVector.push_back(future.get());
-    }
-    return imageInfoVector;
-}
-
-vector<ImageInfo> Imgprocess4(const std::string& folderPath) {
+std::vector<ImageInfoGPU> Imgprocess2GPU(const std::string& folderPath) {
     std::vector<std::string> imageFiles;
-    std::vector<ImageInfo> imageInfoVector;
-
-    // 获取所有图像文件路径
+    std::vector<ImageInfoGPU> imageInfovector;
     for (const auto& entry : std::filesystem::directory_iterator(folderPath)) {
         if (entry.is_regular_file()) {
             std::string extension = entry.path().extension().string();
@@ -97,43 +20,66 @@ vector<ImageInfo> Imgprocess4(const std::string& folderPath) {
         }
     }
 
-    // 并行处理图像
-#pragma omp parallel for
-    for (int i = 0; i < imageFiles.size(); ++i) {
-        // 在每个线程中创建一个独立的 SIFT 对象
-        cv::Ptr<cv::SIFT> localSift = cv::SIFT::create();
-        std::string jpg = imageFiles[i];
+    for (const auto& jpg : imageFiles) {
         cv::Mat img = cv::imread(jpg, cv::IMREAD_GRAYSCALE);
-        std::vector<cv::KeyPoint> keypoints;
+        std::vector< cv::KeyPoint> keypoints;
         cv::Mat descriptors;
-        localSift->detectAndCompute(img, cv::noArray(), keypoints, descriptors);
-        // 向结果容器添加图像信息
-#pragma omp critical
-        {
-            imageInfoVector.push_back({ img, jpg, descriptors});
-        }
+        sift->detectAndCompute(img, cv::noArray(), keypoints, descriptors);
+        cv::cuda::GpuMat gpuDescriptors(descriptors);
+        imageInfovector.push_back({ img, jpg, descriptors, keypoints });
     }
 
-    return imageInfoVector;
+    return imageInfovector;
 }
 
+std::vector<ImageInfo> Imgprocess(const std::string& folderPath) {
+    std::vector<std::string> imageFiles;
+    std::vector<ImageInfo> imageInfovector;
+    for (const auto& entry : std::filesystem::directory_iterator(folderPath)) {
+        if (entry.is_regular_file()) {
+            std::string extension = entry.path().extension().string();
+            if (extension == ".jpg" || extension == ".png") {
+                imageFiles.push_back(entry.path().string());
+            }
+        }
+    }
+    // 用于存储异步任务的 std::future
+    std::vector<std::future<ImageInfo>> futures;
+    for (const auto& jpg : imageFiles) {
+        // 异步执行任务
+        futures.push_back(std::async([jpg]() {
+            cv::Mat img = cv::imread(jpg, cv::IMREAD_GRAYSCALE);
+            std::vector<cv::KeyPoint> keypoints;
+            cv::Mat descriptors;
+            sift->detectAndCompute(img, cv::noArray(), keypoints, descriptors);
+            return ImageInfo{jpg, descriptors};
+            }));
+    }
+    // 等待所有异步任务完成，并获取结果
+    for (auto& future : futures) {
+        imageInfovector.push_back(future.get());
+    }
+    return imageInfovector;
+}
+
+const float epsilon = 1e-5;
 const float ratio_thresh = 0.7f;
 std::mutex mtx;
 
-string MatchImg(const string& Path, vector<ImageInfoGPU>& imageInfoVector) {
+std::string MatchImg(const std::string& Path, std::vector<ImageInfoGPU>& imageInfovector) {
     cv::Mat test = cv::imread(Path, cv::IMREAD_GRAYSCALE);
     if (test.empty()) {
         // 图像加载失败，进行相应的处理
         return "Failed to load the image from ";
     }
-    vector< cv::KeyPoint> testkeypoints;
+    std::vector< cv::KeyPoint> testkeypoints;
     cv::Mat testdescriptors;
     sift->detectAndCompute(test, cv::noArray(), testkeypoints, testdescriptors);
     cv::cuda::GpuMat gpuDescriptors1(testdescriptors);
-    vector<pair<string, int>> res;
-    vector<vector< cv::DMatch> > knn_matches;
-    for (const auto& img : imageInfoVector) {
-        vector<cv::DMatch> good_matches;
+    std::vector<std::pair<std::string, int>> res;
+    std::vector<std::vector< cv::DMatch> > knn_matches;
+    for (const auto& img : imageInfovector) {
+        std::vector<cv::DMatch> good_matches;
         matcher->knnMatch(img.descriptors, gpuDescriptors1, knn_matches, 2);
         for (size_t i = 0; i < knn_matches.size(); i++)
         {
@@ -144,29 +90,29 @@ string MatchImg(const string& Path, vector<ImageInfoGPU>& imageInfoVector) {
         }
         res.push_back({ img.filePath,good_matches.size() });
     }
-    sort(res.begin(), res.end(), [](const pair<string, int>& a, const pair<string, int>& b) {
+    sort(res.begin(), res.end(), [](const std::pair<std::string, int>& a, const std::pair<std::string, int>& b) {
         return a.second > b.second; });
 
-    res=vector<pair<string, int>>(res.begin(), res.begin() + 10);
-    std::vector<std::string> stringVector;
-    // 使用 std::transform 将所有 string 元素提取到 stringVector 中
-    std::transform(res.begin(), res.end(), std::back_inserter(stringVector),
+    res=std::vector<std::pair<std::string, int>>(res.begin(), res.begin() + 10);
+    std::vector<std::string> stringvector;
+    // 使用 std::transform 将所有 string 元素提取到 stringvector 中
+    std::transform(res.begin(), res.end(), std::back_inserter(stringvector),
         [](const std::pair<std::string, int>& pair) { return pair.first; });
-    std::string concatenatedString = std::accumulate(stringVector.begin(), stringVector.end(), std::string(""));
+    std::string concatenatedString = std::accumulate(stringvector.begin(), stringvector.end(), std::string(""));
     return concatenatedString;
 }
 
-string MatchImg2(const string& Path, vector<ImageInfo>& imageInfoVector) {
-    vector< cv::KeyPoint> testkeypoints;
+std::string MatchImg2(const std::string& Path, std::vector<ImageInfo>& imageInfovector) {
+    std::vector< cv::KeyPoint> testkeypoints;
     cv::Mat testdescriptors;
     cv::Mat test = cv::imread(Path, cv::IMREAD_GRAYSCALE);
     sift->detectAndCompute(test, cv::noArray(), testkeypoints, testdescriptors);
     cv::cuda::GpuMat gpuDescriptors1(testdescriptors);
-    vector<pair<string, int>> res;
-    vector<vector< cv::DMatch> > knn_matches;
-    for (const auto& img : imageInfoVector) {
+    std::vector<std::pair<std::string, int>> res;
+    std::vector<std::vector< cv::DMatch> > knn_matches;
+    for (const auto& img : imageInfovector) {
         cv::cuda::GpuMat gpuDescriptors(img.descriptors);
-        vector<cv::DMatch> good_matches;
+        std::vector<cv::DMatch> good_matches;
         matcher->knnMatch(gpuDescriptors, gpuDescriptors1, knn_matches, 2);
         for (size_t i = 0; i < knn_matches.size(); i++)
         {
@@ -177,28 +123,28 @@ string MatchImg2(const string& Path, vector<ImageInfo>& imageInfoVector) {
         }
         res.push_back({ img.filePath,good_matches.size() });
     }
-    sort(res.begin(), res.end(), [](const pair<string, int>& a, const pair<string, int>& b) {
+    sort(res.begin(), res.end(), [](const std::pair<std::string, int>& a, const std::pair<std::string, int>& b) {
         return a.second > b.second; });
-    res = vector<pair<string, int>>(res.begin(), res.begin() + 10);
-    std::vector<std::string> stringVector;
-    // 使用 std::transform 将所有 string 元素提取到 stringVector 中
-    std::transform(res.begin(), res.end(), std::back_inserter(stringVector),
+    res = std::vector<std::pair<std::string, int>>(res.begin(), res.begin() + 10);
+    std::vector<std::string> stringvector;
+    // 使用 std::transform 将所有 std::string 元素提取到 stringstd::vector 中
+    std::transform(res.begin(), res.end(), std::back_inserter(stringvector),
         [](const std::pair<std::string, int>& pair) { return pair.first; });
-    std::string concatenatedString = std::accumulate(stringVector.begin(), stringVector.end(), std::string(""));
+    std::string concatenatedString = std::accumulate(stringvector.begin(), stringvector.end(), std::string(""));
     return concatenatedString;
 }
 
-string MatchImg3(const string& Path, vector<ImageInfo>& imageInfoVector) {
-    vector< cv::KeyPoint> testkeypoints;
+std::string MatchImg3(const std::string& Path, std::vector<ImageInfo>& imageInfovector) {
+    std::vector< cv::KeyPoint> testkeypoints;
     cv::Mat testdescriptors;
     cv::Mat test = cv::imread(Path, cv::IMREAD_GRAYSCALE);
     sift->detectAndCompute(test, cv::noArray(), testkeypoints, testdescriptors);
     cv::cuda::GpuMat gpuDescriptors1(testdescriptors);
-    vector<pair<string, int>> res;
-    vector<vector< cv::DMatch> > knn_matches;
-    for (const auto& img : imageInfoVector) {
+    std::vector<std::pair<std::string, int>> res;
+    std::vector<std::vector< cv::DMatch> > knn_matches;
+    for (const auto& img : imageInfovector) {
         cv::cuda::GpuMat gpuDescriptors(img.descriptors);
-        vector<cv::DMatch> good_matches;
+        std::vector<cv::DMatch> good_matches;
         matcher->knnMatch(gpuDescriptors, gpuDescriptors1, knn_matches, 2);
         for (size_t i = 0; i < knn_matches.size(); i++)
         {
@@ -209,28 +155,28 @@ string MatchImg3(const string& Path, vector<ImageInfo>& imageInfoVector) {
         }
         res.push_back({ img.filePath,good_matches.size() });
     }
-    vector<pair<string, int>> result;
+    std::vector<std::pair<std::string, int>> result;
     for (const auto& item : res) {
         if (item.second > 1000) {
             result.push_back(item);
         }
     }
-    sort(result.begin(), result.end(), [](const pair<string, int>& a, const pair<string, int>& b) {
+    sort(result.begin(), result.end(), [](const std::pair<std::string, int>& a, const std::pair<std::string, int>& b) {
         return a.second > b.second;
         });
-    std::vector<std::string> stringVector;
-    // 使用 std::transform 将所有 string 元素提取到 stringVector 中
-    std::transform(result.begin(), result.end(), std::back_inserter(stringVector),
+    std::vector<std::string> stringvector;
+    // 使用 std::transform 将所有 std::string 元素提取到 stringstd::vector 中
+    std::transform(result.begin(), result.end(), std::back_inserter(stringvector),
         [](const std::pair<std::string, int>& pair) { return pair.first; });
-    std::string concatenatedString = std::accumulate(stringVector.begin(), stringVector.end(), std::string(""));
+    std::string concatenatedString = std::accumulate(stringvector.begin(), stringvector.end(), std::string(""));
     return concatenatedString;
 }
 
-string MatchImg4(const string& Path, vector<ImageInfo>& imageInfoVector) {
+std::string MatchImg4(const std::string& Path, std::vector<ImageInfo>& imageInfovector) {
     try {
-        vector<pair<string, int>> result;
-        vector<vector<cv::DMatch> > knn_matches;
-        vector<cv::KeyPoint> basekeypoints;
+        std::vector<std::pair<std::string, int>> result;
+        std::vector<std::vector<cv::DMatch> > knn_matches;
+        std::vector<cv::KeyPoint> basekeypoints;
         cv::Mat basedescriptors;
 
         cv::Mat base = cv::imread(Path, cv::IMREAD_GRAYSCALE);
@@ -241,9 +187,9 @@ string MatchImg4(const string& Path, vector<ImageInfo>& imageInfoVector) {
 
 
         mtx.lock();
-        for (const auto& img : imageInfoVector) {
+        for (const auto& img : imageInfovector) {
             cv::cuda::GpuMat tempGPUDescriptors(img.descriptors);
-            vector<cv::DMatch> good_matches;
+            std::vector<cv::DMatch> good_matches;
             matcher->knnMatch(tempGPUDescriptors, basegpuDescriptors, knn_matches, 2);
             for (size_t i = 0; i < knn_matches.size(); i++)
             {
@@ -273,17 +219,17 @@ string MatchImg4(const string& Path, vector<ImageInfo>& imageInfoVector) {
     }
 }
 
-string MatchImg5(const string& Path, vector<ImageInfo>& imageInfoVector) {
+std::string MatchImg5(const std::string& Path, std::vector<ImageInfo>& imageInfovector) {
     try {
         Timer time;
-        vector<cv::KeyPoint> basekeypoints;
+        std::vector<cv::KeyPoint> basekeypoints;
         cv::Mat basedescriptors;
         cv::Mat base = cv::imread(Path, cv::IMREAD_GRAYSCALE);
         sift->detectAndCompute(base, cv::noArray(), basekeypoints, basedescriptors);
         cv::cuda::GpuMat basegpuDescriptors(basedescriptors);
 
-        vector<pair<string, int>> result;
-        MatchData(imageInfoVector, basegpuDescriptors,result);
+        std::vector<std::pair<std::string, int>> result;
+        MatchData(imageInfovector, basegpuDescriptors,result);
         return Matchrule(result);
     }
     catch (const std::exception& e) {
@@ -292,11 +238,11 @@ string MatchImg5(const string& Path, vector<ImageInfo>& imageInfoVector) {
 
 }
 
-string MatchImg6(cv::Mat& data, vector<ImageInfo>& imageInfoVector) {
+std::string MatchImg6(cv::Mat& data, std::vector<ImageInfo>& imageInfovector) {
     try {
         cv::cuda::GpuMat basegpuDescriptors(data);
-        vector<pair<string, int>> result;
-        MatchData(imageInfoVector, basegpuDescriptors, result);
+        std::vector<std::pair<std::string, int>> result;
+        MatchData(imageInfovector, basegpuDescriptors, result);
         return Matchrule(result);
     }
     catch (const std::exception& e) {
@@ -305,11 +251,11 @@ string MatchImg6(cv::Mat& data, vector<ImageInfo>& imageInfoVector) {
 
 }
 
-string MatchImg7(cv::Mat& data, vector<ImageInfo>& imageInfoVector) {
+std::string MatchImg7(cv::Mat& data, std::vector<ImageInfo>& imageInfovector) {
     try {
         cv::cuda::GpuMat basegpuDescriptors(data);
-        vector<pair<string, int>> result;
-        MatchDataAsync(imageInfoVector, basegpuDescriptors, result);
+        std::vector<std::pair<std::string, int>> result;
+        MatchDataAsync(imageInfovector, basegpuDescriptors, result);
         return Matchrule(result);
     }
     catch (const std::exception& e) {
@@ -318,16 +264,16 @@ string MatchImg7(cv::Mat& data, vector<ImageInfo>& imageInfoVector) {
 
 }
 
-string MatchImg8(const string& Path, vector<ImageInfo>& imageInfoVector) {
+std::string MatchImg8(const std::string& Path, std::vector<ImageInfo>& imageInfovector) {
     try {
         Timer time;
-        vector<cv::KeyPoint> basekeypoints;
+        std::vector<cv::KeyPoint> basekeypoints;
         cv::Mat basedescriptors;
         cv::Mat base = cv::imread(Path, cv::IMREAD_GRAYSCALE);
         sift->detectAndCompute(base, cv::noArray(), basekeypoints, basedescriptors);
         cv::cuda::GpuMat basegpuDescriptors(basedescriptors);
-        vector<pair<string, int>> result;
-        MatchDataAsync(imageInfoVector, basegpuDescriptors, result);
+        std::vector<std::pair<std::string, int>> result;
+        MatchDataAsync(imageInfovector, basegpuDescriptors, result);
         return Matchrule(result);
     }
     catch (const std::exception& e) {
@@ -336,21 +282,23 @@ string MatchImg8(const string& Path, vector<ImageInfo>& imageInfoVector) {
 
 }
 
-vector<pair<string, int>> MatchData(vector<ImageInfo>& imageInfoVector, cv::cuda::GpuMat& basegpuDescriptors, vector<pair<string, int>>& result) {
-    vector<vector<cv::DMatch> > knn_matches;
-    for (const auto& img : imageInfoVector) {
+std::vector<std::pair<std::string, int>> MatchData(std::vector<ImageInfo>& imageInfovector, cv::cuda::GpuMat& basegpuDescriptors, std::vector<std::pair<std::string, int>>& result) {
+    for (const auto& img : imageInfovector) {
+        std::vector<std::vector<cv::DMatch> > knn_matches;
         cv::cuda::GpuMat tempDescriptors(img.descriptors);
-        vector<cv::DMatch> good_matches;
+        std::vector<cv::DMatch> good_matches;
         matcher->knnMatch(tempDescriptors, basegpuDescriptors, knn_matches, 2);
-        for (size_t i = 0; i < knn_matches.size(); i++)
+        for (int i = 0; i < knn_matches.size(); i++)
         {
-            if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
+            double threshold_value = ratio_thresh * knn_matches[i][1].distance;
+            double distance = knn_matches[i][0].distance;
+            if (distance < threshold_value)
             {
                 good_matches.push_back(knn_matches[i][0]);
             }
         }
         /*
-        取最大匹配点可能图像的阈值为1000
+        取最大匹配点可能图像的阈值为
         */
         if (good_matches.size() > 1000) {
             result.push_back({ img.filePath,good_matches.size() });
@@ -360,21 +308,20 @@ vector<pair<string, int>> MatchData(vector<ImageInfo>& imageInfoVector, cv::cuda
     return result;
 }
 
-
-void ProcessImageAsync(const ImageInfo& img, cv::cuda::GpuMat& basegpuDescriptors, vector<pair<string, int>>& result, mutex& resmutex)
+void ProcessImageAsync(const ImageInfo img , cv::cuda::GpuMat& basegpuDescriptors, std::vector<std::pair<std::string, int>>& result, std::mutex& resmutex)
 {
+    std::vector<std::vector<cv::DMatch>> knn_matches;
+    std::vector<cv::DMatch> good_matches;
     cv::cuda::GpuMat tempDescriptors(img.descriptors);
-    vector<cv::DMatch> good_matches;
-    vector<vector<cv::DMatch>> knn_matches;
     matcher->knnMatch(tempDescriptors, basegpuDescriptors, knn_matches, 2);
-    for (size_t i = 0; i < knn_matches.size(); i++)
+    for (int i = 0; i < knn_matches.size(); i++)
     {
         if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
         {
             good_matches.push_back(knn_matches[i][0]);
         }
     }
-    if (good_matches.size() > 1000)
+    if (good_matches.size() >1000)
     {
         resmutex.lock(); // Protect shared data
         result.push_back(
@@ -384,24 +331,20 @@ void ProcessImageAsync(const ImageInfo& img, cv::cuda::GpuMat& basegpuDescriptor
     }
 }
 
-
-
-
-
-
-vector<pair<string, int>> MatchDataAsync(std::vector<ImageInfo>& imageInfoVector, cv::cuda::GpuMat& basegpuDescriptors, std::vector<std::pair<std::string, int>>& result) {
+std::vector<std::pair<std::string, int>> MatchDataAsync(std::vector<ImageInfo>& imageInfovector, cv::cuda::GpuMat& basegpuDescriptors, std::vector<std::pair<std::string, int>>& result) {
     try {
-        mutex result_mutex;
-        vector<future<void>> futures;
-        for (const auto& img : imageInfoVector)
+        std::mutex result_mutex;
+        std::vector<std::future<void>> futures;
+        for (auto img : imageInfovector)
         {
-            futures.push_back(async(launch::async, ProcessImageAsync, std::ref(img), std::ref(basegpuDescriptors), std::ref(result), std::ref(result_mutex)));
+            futures.push_back(std::async(std::launch::async, ProcessImageAsync, img, std::ref(basegpuDescriptors), std::ref(result), std::ref(result_mutex)));
         }
         // Wait for all async tasks to finish
         for (auto& future : futures)
         {
             future.wait();
         }
+        std::cout << result.size() <<std::endl;
         return result;
     }
     catch (const std::exception& e) {
@@ -409,8 +352,7 @@ vector<pair<string, int>> MatchDataAsync(std::vector<ImageInfo>& imageInfoVector
     }
 }
 
-
-string Matchrule(const vector<pair<string, int>>& result) {
+std::string Matchrule(const std::vector<std::pair<std::string, int>>& result) {
     /*
     取最大匹配点的可能图像的Path 如果没有最大匹配点则返回false
     */
@@ -430,28 +372,28 @@ string Matchrule(const vector<pair<string, int>>& result) {
     }
 }
 
-vector<float> ProcessBasecardPrice(std::string PriceUnit) {
+std::vector<float> ProcessBasecardPrice(std::string PriceUnit) {
     std::istringstream iss(PriceUnit);
-    std::vector<float> PriceVector;
+    std::vector<float> Pricevector;
     char discard;
     float value;
     if (iss >> discard && discard == '{') {
         while (iss >> value) {
-            PriceVector.push_back(value);
+            Pricevector.push_back(value);
             if (iss.peek() == ',')
                 iss.ignore();
         }
     }
-    return PriceVector;
+    return Pricevector;
 }
 
-vector<string> ProcessBasecardPricetime(std::string PricetimeUnit) {
+std::vector<std::string> ProcessBasecardPricetime(std::string PricetimeUnit) {
     std::istringstream iss(PricetimeUnit);
     std::vector<std::string> pricetime;
     char discard;
     std::string tempstr;
 
-    // 读取 '{'，然后读取字符串，逐个添加到 vector 中
+    // 读取 '{'，然后读取字符串，逐个添加到 std::vector 中
     if (iss >> discard && discard == '{') {
         while (std::getline(iss, tempstr, ',')) {
             // 去除字符串中的空格
@@ -469,10 +411,10 @@ vector<string> ProcessBasecardPricetime(std::string PricetimeUnit) {
     return pricetime;
 }
 
-vector<Basecard> DBmatch(string imgstr, pqxx::connection& connection) {
+std::vector<Basecard> DBmatch(std::string imgstr, pqxx::connection& connection) {
     try {
         if (!connection.is_open()) {
-            cout << "ERROR connection: " << connection.dbname() << endl;
+            std::cout << "ERROR connection: " << connection.dbname() << std::endl;
         }
         pqxx::work transaction(connection);
         std::string sql = "SELECT img, textcontent, pricearray, creattime, updatetime, pricetimearray FROM basecard WHERE img = '";
@@ -481,13 +423,13 @@ vector<Basecard> DBmatch(string imgstr, pqxx::connection& connection) {
         std::string ressql = oss.str();
         pqxx::result result = transaction.exec(ressql);
         transaction.commit();
-        vector<Basecard> data;
+        std::vector<Basecard> data;
         for (auto row : result) {
-            std::vector<float> priceVector = ProcessBasecardPrice(row[2].as<string>());
-            std::vector<std::string> pricetimeVector = ProcessBasecardPricetime(row[5].as<string>());
-            Basecard temp(row[0].as<string>(), row[1].as<string>(), 
-                priceVector, row[3].as<string>(),
-                row[4].as<string>(), pricetimeVector);
+            std::vector<float> pricevector = ProcessBasecardPrice(row[2].as<std::string>());
+            std::vector<std::string> pricetimevector = ProcessBasecardPricetime(row[5].as<std::string>());
+            Basecard temp(row[0].as<std::string>(), row[1].as<std::string>(), 
+                pricevector, row[3].as<std::string>(),
+                row[4].as<std::string>(), pricetimevector);
             data.push_back(temp);
         }
         return data;
@@ -497,9 +439,10 @@ vector<Basecard> DBmatch(string imgstr, pqxx::connection& connection) {
     }
 }
 
-cv::Mat ProcessdescriptorsJson(string& imgjson) {
+cv::Mat ProcessdescriptorsJson(std::string& imgjson) {
     imgjson.erase(std::remove(imgjson.begin(), imgjson.end(), '['), imgjson.end());
     imgjson.erase(std::remove(imgjson.begin(), imgjson.end(), ']'), imgjson.end());
+    imgjson.erase(std::remove_if(imgjson.begin(), imgjson.end(), ::isspace), imgjson.end());
     std::stringstream countStream(imgjson);
     int count = 0;
     float temp;
@@ -507,42 +450,53 @@ cv::Mat ProcessdescriptorsJson(string& imgjson) {
         ++count;
         countStream.ignore(std::numeric_limits<std::streamsize>::max(), ',');
     }
-    float* data = new float[count];
-
-    // 使用 stringstream 将字符串分割为数字
-    std::stringstream ss(imgjson);
+    std::vector<float> data;
+    countStream.clear();
+    countStream.str(imgjson);
 
     // 逐个读取数字并存储到数组中
-    for (int i = 0; i < count; ++i) {
-        ss >> data[i];
-        ss.ignore(std::numeric_limits<std::streamsize>::max(), ',');
+    while (countStream >> temp) {
+        data.push_back(temp);
+        countStream.ignore(std::numeric_limits<std::streamsize>::max(), ',');
     }
     int col = 128;
     int row = count / 128;
-    cv::Mat mat(row, col, CV_32F, data);
-    delete[] data;
-
-    return  mat;
+    cv::Mat mat(row, col, CV_32F, data.data());
+    return  mat.clone();
 
 }
 
-vector<ImageInfo> DBGetImageInfo(pqxx::connection& connection) {
+std::vector<ImageInfo> DBGetImageInfo(pqxx::connection& connection,std::string dbtable) {
     try {
         if (!connection.is_open()) {
-            cout << "ERROR connection: " << connection.dbname() << endl;
+            std::cout << "ERROR connection: " << connection.dbname() << std::endl;
         }
         pqxx::work transaction(connection);
-        std::string sql = "SELECT img,imgjson FROM test.jsontest;";
+        std::string sql = "SELECT img,imgdesjson FROM public." + dbtable;
         pqxx::result result = transaction.exec(sql);
         transaction.commit();
-        vector<ImageInfo> data;
-        for (auto row : result) {
-                std::string img = row[0].as<string>();
-                std::string imgjson = row[1].as<string>();
-                cv::Mat mat = ProcessdescriptorsJson(imgjson);
-                ImageInfo imgdata = ImageInfo(img, mat);
-                data.push_back(imgdata);
-                }
+        std::cout << "SQL success" << std::endl;
+        std::vector<ImageInfo> data;
+        data.reserve(result.size());
+        omp_set_num_threads(4);
+        #pragma omp parallel 
+        {
+            // 每个线程的临时向量
+            std::vector<ImageInfo> temp_data;
+
+            #pragma omp for nowait
+            for (int i = 0; i < result.size(); ++i) {
+                auto row = result[i];
+                std::string img = row[0].as<std::string>();
+                std::string imgdesjson = row[1].as<std::string>();
+                cv::Mat mat = ProcessdescriptorsJson(imgdesjson);
+                temp_data.emplace_back(img, mat);
+            }
+
+            // 临界区合并临时向量到主向量
+            #pragma omp critical
+            data.insert(data.end(), temp_data.begin(), temp_data.end());
+        }
         return data;
     }
     catch (const std::exception& e) {
@@ -551,10 +505,8 @@ vector<ImageInfo> DBGetImageInfo(pqxx::connection& connection) {
 }
 
 std::string vectorBasecardToJson(const std::vector<Basecard>& data) {
-
-
     std::string result = "["; // 开始 JSON 数组
-    // 遍历 vector 中的每个 Basecard 对象
+    // 遍历 std::vector 中的每个 Basecard 对象
     for (const auto& card : data) {
         // 将当前 Basecard 对象转换为 JSON 字符串，并添加到结果中
         result += card.toJson() + ",";
@@ -570,39 +522,18 @@ std::string vectorBasecardToJson(const std::vector<Basecard>& data) {
     return result;
 }
 
-void serverhandle(tcp::socket& socket, tcp::socket& ToGpusocket, pqxx::connection& connection, std::string& config) {
-    try {
-        // Process received data
-        std::string received_data(1024, '\0');
-        size_t bytes_transferred = socket.read_some(buffer(received_data));
-        // Connect to GPU
-        ip::tcp::endpoint endpoint(ip::address::from_string("127.0.0.1"), 9008);
-        ToGpusocket.connect(endpoint);
-        write(socket, buffer(received_data));
-        // receive the response and process
-        std::string Gpudata(1024, '\0');
-        size_t received_bytes = ToGpusocket.read_some(buffer(Gpudata));
-        vector<Basecard> Senddata = DBmatch(Gpudata, connection);
-        string Sendmessage =vectorBasecardToJson(Senddata);
-        boost::asio::write(socket, boost::asio::buffer(Sendmessage));
-    }
-    catch (const std::exception& e) {
-        std::cerr << "Exception caught: " << e.what() << std::endl;
-        // Handle the exception or log the error...
-        boost::asio::write(socket, boost::asio::buffer("Error"));
-    }
-    socket.close();
-}
 
-void GPUserverhandle(tcp::socket& socket, vector<ImageInfo>& cvimg) {
+
+void GPUserverhandle(boost::asio::ip::tcp::socket& socket, std::vector<ImageInfo>& imageInfovector, std::shared_mutex& data_Mutex) {
     try {
         std::string received_json(1024, '\0');
-        size_t bytes_transferred = socket.read_some(buffer(received_json));
-        // Process received data and generate response
+        size_t bytes_transferred = socket.read_some(boost::asio::buffer(received_json));
+        std::string response_message;
         cv::Mat data = ProcessdescriptorsJson(received_json);
-        //返回主键数据
-        std::string response_message = MatchImg6(data, cvimg);
-        // Send the response
+        {
+            std::shared_lock<std::shared_mutex> lock(data_Mutex);
+            response_message = MatchImg7(data, imageInfovector);
+        }
         boost::asio::write(socket, boost::asio::buffer(response_message));
     }
     catch (const std::exception& e) {
@@ -613,47 +544,104 @@ void GPUserverhandle(tcp::socket& socket, vector<ImageInfo>& cvimg) {
     socket.close();
 }
 
-void start_server() {
-    io_service io;
-    ip::tcp::endpoint endpoint(ip::tcp::v4(), 9007);
-    ip::tcp::acceptor acceptor(io, endpoint);
 
-    io_context ioContext;
-    ip::tcp::socket ToGpusocket(ioContext);
-    cout << "网络预处理完成" << endl;
-    pqxx::connection db("dbname=cardmatch user=postgres password=123 port=5432");
-    if (db.is_open()) {
-        cout << "Opened database successfully: " << db.dbname() << endl;
+void GPUupdatehandle(boost::asio::ip::tcp::socket& socket, std::vector<ImageInfo>& imageInfovector, std::shared_mutex& data_Mutex, std::string dbname, std::string dbpassword, std::string dbport, std::string dbtable) {
+    try {
+        std::string received_json(1024, '\0');
+        size_t bytes_transferred = socket.read_some(boost::asio::buffer(received_json));
+        received_json.resize(bytes_transferred);
+        std::ostringstream oss;
+        oss << received_json << std::endl;
+        if (received_json == "update") {
+            oss << "update signal accept" << std::endl;
+            std::string connection_string = "dbname=" + dbname + " user=postgres password=" + dbpassword + " port=" + dbport;
+            pqxx::connection db(connection_string);
+            std::vector<ImageInfo> tempImageInfo = DBGetImageInfo(db, dbtable);
+            {
+                std::unique_lock<std::shared_mutex> lock(data_Mutex);
+                imageInfovector = tempImageInfo;
+            }
+            oss << "update success" << std::endl;
+        }
+        std::cout << oss.str();
     }
-    else {
-        cout << "Can't open database" << endl;
+    catch (const std::exception& e) {
+        std::cerr << "update error: " << e.what() << std::endl;
+        std::cerr << boost::stacktrace::stacktrace() << std::endl;
     }
-    string config = "temp";
+    socket.close();
+}
+
+
+void start_GPUserver(YAML::Node config) {
+    std::string dbname = config["dbname"].as<std::string>();
+    std::string dbpassword = config["dbpassword"].as<std::string>();
+    std::string dbport = config["dbport"].as<std::string>();
+    int workport = config["workport"].as<int>();
+    int updateport = config["updateport"].as<int>();
+    std::string dbtable = config["dbtable"].as<std::string>();
+    boost::asio::io_context io_context;
+    boost::asio::ip::tcp::endpoint workendpoint(boost::asio::ip::tcp::v4(), 50301);
+    boost::asio::ip::tcp::endpoint updateendpoint(boost::asio::ip::tcp::v4(), 50300);
+    boost::asio::ip::tcp::acceptor workacceptor(io_context, workendpoint);
+    boost::asio::ip::tcp::acceptor updateacceptor(io_context, updateendpoint);
+    std::vector<ImageInfo> imageInfovector;
+    std::shared_mutex data_Mutex;
+    std::cout << "网络预处理完成" << std::endl;
     while (true) {
-        ip::tcp::socket socket(io);
-        acceptor.accept(socket);
-        std::thread worker(serverhandle, std::ref(socket), std::ref(ToGpusocket), std::ref(db),std::ref(config));
-        worker.detach();
+        boost::asio::ip::tcp::socket worksocket(io_context);
+        workacceptor.accept(worksocket);
+        std::thread work(GPUupdatehandle, std::ref(worksocket), std::ref(imageInfovector), std::ref(data_Mutex), dbname, dbpassword, dbport,dbtable);
+        work.detach();
     }
 }
 
-void start_GPUserver() {
-    io_service io;
-    ip::tcp::endpoint endpoint(ip::tcp::v4(), 9008);
-    ip::tcp::acceptor acceptor(io, endpoint);
-    cout << "网络预处理完成" << endl;
-    vector<ImageInfo> cvimg;
-    pqxx::connection db("dbname=cardmatch user=postgres password=123 port=5432");
-    if (db.is_open()) {
-        cout << "Opened database successfully: " << db.dbname() << endl;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void Imagerelation(std::vector<ImageInfo> imageInfovector) {
+    std::vector<std::pair<std::string, std::vector<std::pair<std::string, int>>>> res;
+    int i = 0;
+    for (auto img : imageInfovector) {
+        Timer time();
+        cv::cuda::GpuMat basegpuDescriptors(img.descriptors);
+        std::vector<std::pair<std::string, int>> result;
+        MatchDataAsync(imageInfovector, basegpuDescriptors, result);
+        res.push_back({img.filePath ,result });
+        i++;
+        std::cout << i << std::endl;
     }
-    else {
-        cout << "Can't open database" << endl;
+    std::ofstream file("output.txt");
+    if (!file.is_open()) {
+        std::cerr << "无法打开文件\n";
+        return;
     }
-    while (true) {
-        ip::tcp::socket socket(io);
-        acceptor.accept(socket);
-        std::thread worker(GPUserverhandle, std::ref(socket),std::ref(cvimg));
-        worker.detach();
+
+    for (const auto& outerPair : res) {
+        file << outerPair.first << " "; // 写入外部字符串  
+        for (const auto& innerPair : outerPair.second) {
+            file << "(" << innerPair.first << ", " << innerPair.second << ") "; // 写入内部对  
+        }
+        file << std::endl; // 每行末尾换行  
     }
+
+    file.close();
 }

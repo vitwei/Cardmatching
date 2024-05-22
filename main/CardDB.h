@@ -8,7 +8,6 @@
 #include <nlohmann/json.hpp>
 
 
-using namespace std;
 
 class Basecard {
 public:

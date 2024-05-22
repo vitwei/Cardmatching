@@ -27,68 +27,71 @@
 #include <pqxx/pqxx>
 #include <nlohmann/json.hpp>
 #include <thread>
+#include <fstream>  
+#include "yaml-cpp/yaml.h"  
+#include <boost/stacktrace.hpp>
 
 
-using namespace std;
-using namespace boost::asio;
-using namespace boost::asio::ip;
 
 
 struct ImageInfoGPU {
     cv::Mat image;
-    string filePath;
+    std::string filePath;
     cv::cuda::GpuMat descriptors;
-    vector< cv::KeyPoint> keypoints;
+    std::vector< cv::KeyPoint> keypoints;
 
-    ImageInfoGPU(const  cv::Mat& img, const string& path, const  cv::Mat& desc, const vector< cv::KeyPoint>& kpts)
+    ImageInfoGPU(const  cv::Mat& img, const std::string& path, const  cv::Mat& desc, const std::vector< cv::KeyPoint>& kpts)
         : image(img), filePath(path), descriptors(desc), keypoints(kpts) {}
 };
 
 struct ImageInfo {
-    cv::Mat image;
-    string filePath;
+    std::string filePath;
     cv::Mat descriptors;
-    ImageInfo(const cv::Mat& img, const string& path, const  cv::Mat& desc) :
-        image(img), filePath(path), descriptors(desc) {}
-    ImageInfo(const string& path, const  cv::Mat& desc) :
+    ImageInfo(const std::string& path, const  cv::Mat& desc) :
          filePath(path), descriptors(desc) {}
+
 };
 
-vector<ImageInfoGPU> Imgprocess(const string& folderPath);
-vector<ImageInfo> Imgprocess2(const string& folderPath);
-vector<ImageInfo> Imgprocess3(const string& folderPath);
-vector<ImageInfo> Imgprocess4(const string& folderPath);
+std::vector<ImageInfoGPU> Imgprocess2GPU(const std::string& folderPath);
+std::vector<ImageInfo> Imgprocess(const std::string& folderPath);
 
 
-string  MatchImg(const string& Path, vector<ImageInfo>& imageInfoVector);
-string  MatchImg2(const string& Path, vector<ImageInfo>& imageInfoVector);
-string  MatchImg3(const string& Path, vector<ImageInfo>& imageInfoVector);
-string  MatchImg4(const string& Path, vector<ImageInfo>& imageInfoVector);
-string MatchImg5(const string& Path, vector<ImageInfo>& imageInfoVector);
-string MatchImg6(cv::Mat& data, vector<ImageInfo>& imageInfoVector);
-string MatchImg7(cv::Mat& data, vector<ImageInfo>& imageInfoVector);
-string MatchImg8(const string& Path, vector<ImageInfo>& imageInfoVector);
+std::string  MatchImg(const std::string& Path, std::vector<ImageInfo>& imageInfovector);
+std::string  MatchImg2(const std::string& Path, std::vector<ImageInfo>& imageInfovector);
+std::string  MatchImg3(const std::string& Path, std::vector<ImageInfo>& imageInfovector);
+std::string  MatchImg4(const std::string& Path, std::vector<ImageInfo>& imageInfovector);
+std::string MatchImg5(const std::string& Path, std::vector<ImageInfo>& imageInfovector);
+std::string MatchImg6(cv::Mat& data, std::vector<ImageInfo>& imageInfovector);
 
-string Matchrule(const vector<pair<string, int>>& result);
+//cv::Mat& data 为sift格式的descriptors
+std::string MatchImg7(cv::Mat& data, std::vector<ImageInfo>& imageInfovector);
 
-vector<Basecard> DBmatch(string imgstr, pqxx::connection& connection);
+std::string MatchImg8(const std::string& Path, std::vector<ImageInfo>& imageInfovector);
 
-vector<float> ProcessBasecardPrice(std::string PriceUnit);
+std::string Matchrule(const std::vector<std::pair<std::string, int>>& result);
 
-vector<string> ProcessBasecardPricetime(std::string PricetimeUnit);
+std::vector<Basecard> DBmatch(std::string imgstr, pqxx::connection& connection);
 
-vector<pair<string, int>> MatchData(vector<ImageInfo>& imageInfoVector, cv::cuda::GpuMat& basegpuDescriptors, vector<pair<string, int>>& result);
+std::vector<float> ProcessBasecardPrice(std::string PriceUnit);
 
-void ProcessImageAsync(const ImageInfo& img, cv::cuda::GpuMat& basegpuDescriptors, vector<pair<string, int>>& result, mutex& resmutex);
-vector<pair<string, int>> MatchDataAsync(std::vector<ImageInfo>& imageInfoVector, cv::cuda::GpuMat& basegpuDescriptors, std::vector<std::pair<std::string, int>>& result);
+std::vector<std::string> ProcessBasecardPricetime(std::string PricetimeUnit);
 
-cv::Mat ProcessdescriptorsJson(string& imgjson);
+std::vector<std::pair<std::string, int>> MatchData(std::vector<ImageInfo>& imageInfovector, cv::cuda::GpuMat& basegpuDescriptors, std::vector<std::pair<std::string, int>>& result);
 
-vector<ImageInfo> DBGetImageInfo(pqxx::connection& connection);
+void ProcessImageAsync(ImageInfo img, cv::cuda::GpuMat& basegpuDescriptors, std::vector<std::pair<std::string, int>>& result, std::mutex& resmutex);
 
-void serverhandle(tcp::socket& socket, tcp::socket& ToGpusocket, pqxx::connection& connection, std::string& config);
-void GPUserverhandle(tcp::socket& socket, vector<ImageInfo>& cvimg);
-void start_GPUserver();
-void start_server();
+std::vector<std::pair<std::string, int>> MatchDataAsync(std::vector<ImageInfo>& imageInfovector, cv::cuda::GpuMat& basegpuDescriptors, std::vector<std::pair<std::string, int>>& result);
 
+cv::Mat ProcessdescriptorsJson(std::string& imgjson);
+
+
+std::vector<ImageInfo> DBGetImageInfo(pqxx::connection& connection, std::string dbtable);
+
+void GPUserverhandle(boost::asio::ip::tcp::socket& socket, std::vector<ImageInfo>& imageInfovector, std::shared_mutex& data_Mutex);
+
+void GPUupdatehandle(boost::asio::ip::tcp::socket& socket, std::vector<ImageInfo>& imageInfovector, std::shared_mutex& data_Mutex, std::string dbname, std::string dbpassword, std::string dbport, std::string dbtable);
+
+void Imagerelation(std::vector<ImageInfo> imageInfovector);
+
+void start_GPUserver(YAML::Node config);
 #endif  // ProcessData
