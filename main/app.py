@@ -11,7 +11,7 @@ import json
 import os
 from DB.utils import requestbaseimgpool,custom_json_serializer
 SERVER_IP = '127.0.0.1'
-SERVER_PORT = 50300
+SERVER_PORT = 50301
 app = Flask(__name__)
 IMAGE_FOLDER = os.path.join(os.getcwd(), 'images')
 
@@ -87,4 +87,4 @@ def cardmatch():
         client_socket.close()
 
 if __name__ == '__main__':
-    app.run(debug=True, port=50301)
+    app.run(host='0.0.0.0',debug=True, port=50300)
