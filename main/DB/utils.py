@@ -5,13 +5,11 @@ Created on Wed May  8 13:26:11 2024
 @author: Administrator
 """
 from datetime import datetime
-import random  
 import os  
 import cv2 as cv 
 import json
 import psycopg
 import pandas as pd
-import cv2 as cv
 import socket
 import json
 def image2json(path_to_dir):  

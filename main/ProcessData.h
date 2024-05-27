@@ -71,7 +71,6 @@ std::string MatchImg8(const std::string& Path, std::vector<ImageInfo>& imageInfo
 std::string Matchrule(const std::vector<std::pair<std::string, int>>& result);
 
 std::vector<Basecard> DBmatch(std::string imgstr, pqxx::connection& connection);
-
 std::vector<float> ProcessBasecardPrice(std::string PriceUnit);
 
 std::vector<std::string> ProcessBasecardPricetime(std::string PricetimeUnit);
