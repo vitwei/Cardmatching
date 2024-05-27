@@ -97,12 +97,12 @@ def cardmatchtest():
         return jsonify({"error": "No input data provided"}), 400
     carddesjson= json.dumps(data)
     try:
-        bf = cv2.BFMatcher()
+        bf = cv.BFMatcher()
         sift = cv.SIFT_create()
         data= np.array(carddesjson).reshape(-1, 128)
         response='False'
         for jpg_file in jpg_files:
-            img = cv2.imread(jpg_file)
+            img = cv.imread(jpg_file)
             gray_img = cv.cvtColor(img, cv.COLOR_BGR2GRAY) 
             kp, des = sift.detectAndCompute(gray_img,None)
             matches = bf.knnMatch(des1,data, k=2)
