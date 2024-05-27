@@ -92,7 +92,6 @@ jpg_files = glob.glob(os.path.join(img_folder, '*.jpg'))
 @app.route('/cardmatchtest', methods=['POST'])
 def cardmatchtest():
     import cv2 as cv
-
     data = request.get_json()
     if not data:
         return jsonify({"error": "No input data provided"}), 400
@@ -140,9 +139,7 @@ def cardmatchtest():
     except Exception as e:
         print("Error:", e)
         return jsonify(error="An error occurred"), 500
-    finally:
-    # 关闭套接字
-        client_socket.close()
+
 
 
 
