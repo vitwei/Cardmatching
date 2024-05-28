@@ -97,16 +97,24 @@ def cardmatchtest():
     if not data:
         return jsonify({"error": "No input data provided"}), 400
     carddesjson= json.dumps(data)
+    float_list = []
+    for x in carddesjson[1:-1]:
+        try:
+            float_list.append(float(x))
+        except ValueError:
+            pass
+    float_list=np.array(float_list,dtype=np.uint8).reshape(-1,128)
+    resdes = cv2.cvtColor(float_list, cv2.COLOR_GRAY2BGR)
+    resdes = cv.cvtColor(des, cv.COLOR_BGR2GRAY)
     try:
         bf = cv.BFMatcher()
         sift = cv.SIFT_create()
-        data= np.array(carddesjson).reshape(-1, 128)
         response='False'
         for jpg_file in jpg_files:
             img = cv.imread(jpg_file)
             gray_img = cv.cvtColor(img, cv.COLOR_BGR2GRAY) 
             kp, des = sift.detectAndCompute(gray_img,None)
-            matches = bf.knnMatch(des1,data, k=2)
+            matches = bf.knnMatch(des,resdes, k=2)
             good = []
             for m,n in matches:
                 if m.distance < 0.75*n.distance:
@@ -141,8 +149,20 @@ def cardmatchtest():
         print("Error:", e)
         return jsonify(error="An error occurred"), 500
 
-
-
+@app.route('/cardmatchtemp', methods=['POST'])
+def cardmatchtemp():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No input data provided"}), 400
+    carddesjson= json.dumps(data)
+    respoense= {
+            "message": "ok",
+            "img":img,
+            "price": json.dumps([1.2,3.5,4.5,6.7]),
+            "bidcount": json.dumps([10,34,23,55]),
+            "time": json.dumps(time,default=custom_json_serializer)
+            }
+    return jsonify(respoense), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0',debug=True, port=50300)

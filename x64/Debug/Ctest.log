@@ -1,0 +1,26 @@
+﻿  ProcessData.cpp
+  Please define _WIN32_WINNT or _WIN32_WINDOWS appropriately. For example:
+  - add -D_WIN32_WINNT=0x0601 to the compiler command line; or
+  - add _WIN32_WINNT=0x0601 to your project's Preprocessor Definitions.
+  Assuming _WIN32_WINNT=0x0601 (i.e. Windows 7 target).
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\utility(250,54): warning C4267: “初始化”: 从“size_t”转换到“_Ty2”，可能丢失数据
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\utility(250,54): warning C4267:         with
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\utility(250,54): warning C4267:         [
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\utility(250,54): warning C4267:             _Ty2=int
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\utility(250,54): warning C4267:         ]
+  (编译源文件“main/ProcessData.cpp”)
+  C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\utility(250,54):
+  模板实例化上下文(最早的实例化上下文)为
+  	J:\WorkWork\Ctest\main\ProcessData.cpp(142,23):
+  	查看对正在编译的函数 模板 实例化“std::pair<std::string,int>::pair<const std::string&,unsigned __int64,0>(_Other1,_Other2 &&) noexcept(false)”的引用
+          with
+          [
+              _Other1=const std::string &,
+              _Other2=unsigned __int64
+          ]
+  		J:\WorkWork\Ctest\main\ProcessData.cpp(142,22):
+  		请参阅 "MatchImg" 中对 "std::pair<std::string,int>::pair" 的第一个引用
+  
+ProcessData.obj : error LNK2019: 无法解析的外部符号 "class cv::debug_build_guard::_InputOutputArray const & __cdecl cv::noArray(void)" (?noArray@cv@@YAAEBV_InputOutputArray@debug_build_guard@1@XZ)，函数 "public: __cdecl `class std::vector<struct ImageInfo2,class std::allocator<struct ImageInfo2> > __cdecl Imgprocess3(class std::basic_string<char,struct std::char_traits<char>,class std::allocator<char> > const &)'::`16'::<lambda_1>::operator()(void)const " (??R<lambda_1>@?BA@??Imgprocess3@@YA?AV?$vector@UImageInfo2@@V?$allocator@UImageInfo2@@@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@3@@Z@QEBA@XZ) 中引用了该符号
+ProcessData.obj : error LNK2019: 无法解析的外部符号 "public: void __cdecl cv::cuda::GpuMat::upload(class cv::debug_build_guard::_InputArray const &)" (?upload@GpuMat@cuda@cv@@QEAAXAEBV_InputArray@debug_build_guard@3@@Z)，函数 "public: __cdecl cv::cuda::GpuMat::GpuMat(class cv::debug_build_guard::_InputArray const &,class cv::cuda::GpuMat::Allocator *)" (??0GpuMat@cuda@cv@@QEAA@AEBV_InputArray@debug_build_guard@2@PEAVAllocator@012@@Z) 中引用了该符号
+J:\WorkWork\Ctest\x64\Debug\Ctest.exe : fatal error LNK1120: 2 个无法解析的外部命令

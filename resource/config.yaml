@@ -1,0 +1,6 @@
+dbname: "Cardtest"  
+dbpassword: "123"
+dbport: "5432"
+workport: "50301"
+updateport: "50300"
+dbtable: "imgobj"
